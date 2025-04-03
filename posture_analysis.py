@@ -40,6 +40,10 @@ pose_detector = mp_pose.Pose(
     min_detection_confidence=0.7
 )
 
+# In MediaPipe 0.10+, we might need to adjust the detector settings or handle differently
+# The API might have changed, but we're keeping the same parameters for now
+# If there are issues, we'll need to check the updated MediaPipe documentation
+
 def create_pdf_report(image_path, analysis_data, visualization_path=None):
     """
     Create a detailed PDF report of the posture analysis

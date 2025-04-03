@@ -7,7 +7,7 @@ Pillow==8.3.2
 werkzeug==2.0.1
 gunicorn==20.1.0
 statistics
-mediapipe==0.8.10
+mediapipe==0.10.5
 reportlab==3.6.2
 uuid
 whitenoise==6.4.0 
