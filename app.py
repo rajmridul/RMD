@@ -6,8 +6,6 @@ import uuid
 import cv2
 import numpy as np
 import logging
-import random
-import time
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from posture_analysis import analyze_posture, create_aggregated_report
@@ -17,20 +15,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
-# Configure CORS for production and development
-origins = [
-    "http://localhost:3000",                     # Local development
-    "https://armed-frontend.onrender.com",       # Render frontend (replace with your actual URL)
-]
-CORS(app, resources={r"/api/*": {"origins": origins}})
+CORS(app)  # Enable CORS for all routes
 
 # Configure upload folder
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-PDF_FOLDER = os.path.join(BASE_DIR, 'reports')
-FRAMES_FOLDER = os.path.join(BASE_DIR, 'frames')
-VISUALIZATIONS_FOLDER = os.path.join(BASE_DIR, 'visualizations')
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+PDF_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+FRAMES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frames')
+VISUALIZATIONS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visualizations')
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov', 'webm'}
 
@@ -45,28 +36,6 @@ app.config['PDF_FOLDER'] = PDF_FOLDER
 app.config['FRAMES_FOLDER'] = FRAMES_FOLDER
 app.config['VISUALIZATIONS_FOLDER'] = VISUALIZATIONS_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max upload size
-
-# Cleanup old files to manage Render's ephemeral storage
-@app.before_request
-def cleanup_old_files():
-    try:
-        # Only run cleanup occasionally (1% of requests)
-        if random.random() < 0.01:
-            now = time.time()
-            logger.info("Running file cleanup routine")
-            for folder in [UPLOAD_FOLDER, PDF_FOLDER, FRAMES_FOLDER, VISUALIZATIONS_FOLDER]:
-                if os.path.exists(folder):
-                    for filename in os.listdir(folder):
-                        filepath = os.path.join(folder, filename)
-                        # If file is older than 1 hour, delete it
-                        if os.path.isfile(filepath) and os.path.getmtime(filepath) < now - 3600:
-                            try:
-                                os.remove(filepath)
-                                logger.debug(f"Deleted old file: {filepath}")
-                            except Exception as e:
-                                logger.error(f"Error deleting file {filepath}: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error in cleanup routine: {str(e)}")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -196,6 +165,11 @@ def analyze_image():
             if not frame_paths:
                 logger.error("Failed to extract frames from video")
                 return jsonify({'error': 'Failed to extract frames from video. Please ensure the video is valid.'}), 400
+                
+            # Check if we have at least 5 frames for proper analysis
+            if len(frame_paths) < 5:
+                logger.error(f"Insufficient frames extracted: {len(frame_paths)}. Minimum required: 5")
+                return jsonify({'error': 'The video is too short or has insufficient content for analysis. Please upload a video that can yield at least 5 distinct frames.'}), 400
             
             logger.info(f"Successfully extracted {len(frame_paths)} frames")
             
@@ -299,13 +273,23 @@ def get_report(filename):
         # Check in PDF folder
         pdf_path = os.path.join(app.config['PDF_FOLDER'], filename)
         if os.path.exists(pdf_path):
-            return send_file(pdf_path, as_attachment=True)
+            return send_file(
+                pdf_path, 
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
             
         # If not found, check other possible locations
         for folder in [app.config['UPLOAD_FOLDER'], app.config['FRAMES_FOLDER']]:
             for root, dirs, files in os.walk(folder):
                 if filename in files:
-                    return send_file(os.path.join(root, filename), as_attachment=True)
+                    return send_file(
+                        os.path.join(root, filename), 
+                        mimetype='application/pdf',
+                        as_attachment=True,
+                        download_name=filename
+                    )
         
         logger.error(f"Report file not found: {filename}")
         return jsonify({'error': 'Report not found'}), 404

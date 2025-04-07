@@ -9,7 +9,6 @@ AR-MED is an AI-powered posture analysis system that uses computer vision to det
 - **Detailed Reports**: Generates professional PDF reports with visualizations and personalized recommendations
 - **Modern Web Interface**: React.js frontend with Material UI for a clean, responsive user experience
 - **Flask API Backend**: Robust Python backend that processes images and generates analysis
-- **Video Analysis**: Accepts video files (up to 6 seconds) and analyzes posture across multiple frames
 
 ## Project Structure
 
@@ -20,8 +19,6 @@ AR-MED/
 ├── requirements.txt        # Python dependencies
 ├── uploads/                # Directory for uploaded images and reports
 ├── reports/                # Directory for generated PDF reports
-├── frames/                 # Directory for extracted video frames
-├── visualizations/         # Directory for generated visualizations
 └── frontend/
     └── ar-med/            # React.js frontend application
 ```
@@ -75,25 +72,15 @@ The React application will start running on http://localhost:3000
 
 1. Open your browser and navigate to http://localhost:3000
 2. Click on "Analysis Tool" in the navigation menu or the "Try It Now" button
-3. Upload a clear full-body image or a short video (up to 6 seconds)
-4. Click "Analyze Posture" to process the image/video
+3. Upload a clear full-body image showing the person's posture
+4. Click "Analyze Posture" to process the image
 5. View the analysis results and download the detailed PDF report
 
 ## Backend API Endpoints
 
-- `POST /api/analyze`: Upload an image or video for posture analysis
+- `POST /api/analyze`: Upload an image for posture analysis
 - `GET /api/reports/<filename>`: Download a generated PDF report
 - `GET /api/visualizations/<filename>`: View a generated visualization image
-
-## Deployment
-
-The AR-MED application is ready for deployment on Render. We've included all necessary configuration files:
-
-- `gunicorn.conf.py`: Configuration for the production web server
-- `Procfile`: Defines how to run the application
-- `runtime.txt`: Specifies the Python version
-
-For detailed deployment instructions, see the [DEPLOY.md](DEPLOY.md) file.
 
 ## Technical Details
 

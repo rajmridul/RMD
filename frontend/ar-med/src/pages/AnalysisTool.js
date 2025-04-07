@@ -27,9 +27,6 @@ import ImageIcon from '@mui/icons-material/Image';
 import InfoIcon from '@mui/icons-material/Info';
 import axios from 'axios';
 
-// API URL from environment variables
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
 const AnalysisTool = () => {
   const theme = useTheme();
   const [selectedFile, setSelectedFile] = useState(null);
@@ -134,7 +131,7 @@ const AnalysisTool = () => {
     formData.append('image', selectedFile); // Backend endpoint uses 'image' for both image and video
 
     try {
-      const response = await axios.post(`${API_URL}/api/analyze`, formData, {
+      const response = await axios.post('/api/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -152,9 +149,51 @@ const AnalysisTool = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (result && result.pdf_path) {
-      window.open(`${API_URL}/api/reports/${result.pdf_path}`, '_blank');
+      try {
+        // Show loading indicator or some feedback that download is in progress
+        setLoading(true);
+        
+        // Fetch the PDF file
+        const response = await fetch(`/api/reports/${result.pdf_path}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to download PDF: ${response.statusText}`);
+        }
+        
+        // Get the blob from the response
+        const blob = await response.blob();
+        
+        // Create a URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // Get filename from Content-Disposition header or use the pdf_path
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const filename = contentDisposition 
+          ? contentDisposition.split('filename=')[1].replace(/"/g, '') 
+          : result.pdf_path;
+        
+        a.download = filename;
+        
+        // Append to the body, click, and remove
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error("Error downloading PDF:", error);
+        setError("Failed to download the PDF report. Please try again.");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -290,7 +329,7 @@ const AnalysisTool = () => {
           </Typography>
           <Box
             component="img"
-            src={`${API_URL}/api/visualizations/${result.visualization_path}`}
+            src={`/api/visualizations/${result.visualization_path}`}
             alt="Analysis Visualization"
             sx={{
               width: '100%',
@@ -372,7 +411,7 @@ const AnalysisTool = () => {
           </Typography>
           <Box
             component="img"
-            src={`${API_URL}/api/visualizations/${result.visualization_path}`}
+            src={`/api/visualizations/${result.visualization_path}`}
             alt="Analysis Visualization"
             sx={{
               width: '100%',
