@@ -5,10 +5,6 @@ import uuid
 from telebot import TeleBot, types
 import cv2
 import sys
-from dotenv import load_dotenv
-
-# Load environment variables from .env file (if it exists)
-load_dotenv()
 
 print(f"Using OpenCV version: {cv2.__version__}")
 # Add your project's directory to the path so we can import from it
@@ -21,21 +17,11 @@ from posture_analysis import analyze_posture, create_aggregated_report
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize directories - Use /tmp for Render's ephemeral storage
-# Check if running on Render (environment variable set by Render)
-IS_RENDER = os.environ.get('RENDER', 'false').lower() == 'true'
-
-if IS_RENDER:
-    # Use /tmp directory when on Render for ephemeral storage
-    BASE_DIR = '/tmp'
-else:
-    # Use local directories when running locally
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-PDF_FOLDER = os.path.join(BASE_DIR, 'reports')
-FRAMES_FOLDER = os.path.join(BASE_DIR, 'frames')
-VISUALIZATIONS_FOLDER = os.path.join(BASE_DIR, 'visualizations')
+# Initialize directories
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
+PDF_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'reports')
+FRAMES_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frames')
+VISUALIZATIONS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'visualizations')
 
 # Create folders if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -43,32 +29,9 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 os.makedirs(FRAMES_FOLDER, exist_ok=True)
 os.makedirs(VISUALIZATIONS_FOLDER, exist_ok=True)
 
-# Initialize the bot with your token from environment variable
-# Fall back to hardcoded token if not available (not recommended for production)
-TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8181486854:AAEnnWZaPo7Aa0FCmJiU2BdfOVoi6IrONo4')
+# Initialize the bot with your token
+TOKEN = '8181486854:AAEnnWZaPo7Aa0FCmJiU2BdfOVoi6IrONo4'  # Replace with your actual token
 bot = TeleBot(TOKEN)
-
-# Health check route for Render to ping (needs simple HTTP server)
-if IS_RENDER:
-    import threading
-    from http.server import HTTPServer, BaseHTTPRequestHandler
-    
-    class HealthCheckHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'Bot is running')
-            
-    def run_health_server():
-        port = int(os.environ.get('PORT', 8080))
-        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-        logger.info(f"Starting health check server on port {port}")
-        server.serve_forever()
-    
-    # Start health check server in a separate thread
-    health_thread = threading.Thread(target=run_health_server, daemon=True)
-    health_thread.start()
 
 def extract_frames(video_path, output_dir, num_frames=10, max_duration=6.0):
     """
@@ -407,56 +370,7 @@ def handle_all_messages(message):
 # Start the bot
 if __name__ == "__main__":
     logger.info("Starting AR-MED Telegram Bot...")
-    logger.info(f"Using directories: Uploads={UPLOAD_FOLDER}, Reports={PDF_FOLDER}")
-    
-    # Print environment info for debugging
-    if IS_RENDER:
-        logger.info("Running on Render deployment")
-    else:
-        logger.info("Running in local environment")
-    
     try:
-        # Use webhook mode if on Render and WEBHOOK_URL is provided
-        webhook_url = os.environ.get('WEBHOOK_URL')
-        
-        if IS_RENDER and webhook_url:
-            # Remove any existing webhooks
-            bot.remove_webhook()
-            
-            # Set webhook
-            logger.info(f"Setting webhook to: {webhook_url}")
-            bot.set_webhook(url=webhook_url)
-            
-            # Start the bot with webhook
-            import cherrypy
-            
-            class WebhookServer(object):
-                @cherrypy.expose
-                def index(self):
-                    if 'content-length' in cherrypy.request.headers and \
-                       'content-type' in cherrypy.request.headers and \
-                       cherrypy.request.headers['content-type'] == 'application/json':
-                        length = int(cherrypy.request.headers['content-length'])
-                        json_string = cherrypy.request.body.read(length).decode("utf-8")
-                        update = types.Update.de_json(json_string)
-                        bot.process_new_updates([update])
-                        return '{"status": "success"}'
-                    return '{"status": "error"}'
-            
-            # Start cherrypy server
-            cherrypy.config.update({
-                'server.socket_host': '0.0.0.0',
-                'server.socket_port': int(os.environ.get('PORT', 8443)),
-                'engine.autoreload.on': False
-            })
-            cherrypy.quickstart(WebhookServer(), '/')
-        else:
-            # Use long polling mode (good for local development)
-            logger.info("Using long polling mode")
-            bot.remove_webhook()
-            bot.infinity_polling(timeout=60, allowed_updates=types.util.update_types)
+        bot.infinity_polling()
     except Exception as e:
         logger.exception(f"Bot crashed: {str(e)}")
-        # Wait a bit before exiting to avoid rapid restarts if deployed
-        import time
-        time.sleep(10)
