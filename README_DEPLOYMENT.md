@@ -20,8 +20,8 @@ Make sure you have a copy of the code in your own GitHub repository.
 3. Connect your GitHub repository
 4. Configure the service:
    - Name: `ar-med-telegram-bot` (or your preferred name)
-   - Environment: `Python 3`
-   - Build Command: `pip install -r requirements.txt`
+   - Environment: `Python`
+   - Build Command: `./build.sh` 
    - Start Command: `python telegram_bot.py`
    - Plan: Choose an appropriate plan (at least the "Individual" plan with 512 MB RAM)
 
@@ -40,6 +40,14 @@ Optional for webhook mode:
 
 Click "Create Web Service" to deploy the bot.
 
+## Troubleshooting Deployment Issues
+
+If you encounter build errors:
+
+1. Check that you're using the build.sh script as your build command
+2. Verify that the runtime.txt specifies Python 3.9
+3. If NumPy or other compilation errors occur, try using pre-compiled wheels by modifying requirements.txt
+
 ## Webhook vs Long Polling
 
 The bot supports two modes of operation:
@@ -53,16 +61,6 @@ To use webhook mode, add the `WEBHOOK_URL` environment variable pointing to your
 ## File Storage
 
 The bot uses Render's ephemeral storage (`/tmp` directory) for storing uploaded images, generated reports, and other temporary files. Note that these files will be lost when the service restarts, which is normal for most cloud deployments.
-
-## Troubleshooting
-
-If your bot isn't working properly after deployment:
-
-1. Check the logs in the Render dashboard for errors
-2. Verify your Telegram Bot Token is correct
-3. Make sure the bot is running (send `/start` command)
-4. Ensure you have set all the necessary environment variables
-5. If using webhook mode, make sure your webhook URL is accessible from the internet
 
 ## Resource Considerations
 
