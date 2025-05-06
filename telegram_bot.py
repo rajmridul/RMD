@@ -30,7 +30,7 @@ os.makedirs(FRAMES_FOLDER, exist_ok=True)
 os.makedirs(VISUALIZATIONS_FOLDER, exist_ok=True)
 
 # Initialize the bot with your token
-TOKEN = '8181486854:AAEnnWZaPo7Aa0FCmJiU2BdfOVoi6IrONo4'  # Replace with your actual token
+TOKEN = '7390276698:AAE08VB7ML-4xee3OOD8VrDOFVPCWm-1g6U'  # Replace with your actual token
 bot = TeleBot(TOKEN)
 
 def extract_frames(video_path, output_dir, num_frames=10, max_duration=6.0):

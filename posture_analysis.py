@@ -75,11 +75,69 @@ def create_pdf_report(image_path, analysis_data, visualization_path=None):
         spaceAfter=6
     )
     
+    subheading_style = ParagraphStyle(
+        'Subheading',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceAfter=6
+    )
+    
     normal_style = ParagraphStyle(
         'Normal',
         parent=styles['Normal'],
         fontSize=10,
         spaceAfter=6
+    )
+    
+    important_style = ParagraphStyle(
+        'Important',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=6,
+        textColor=colors.red,
+        fontName='Helvetica-Bold'
+    )
+    
+    status_style_good = ParagraphStyle(
+        'StatusGood',
+        parent=styles['Heading2'],
+        fontSize=16,
+        spaceAfter=8,
+        textColor=colors.green,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        borderWidth=1,
+        borderColor=colors.green,
+        borderPadding=5,
+        borderRadius=5
+    )
+    
+    status_style_mild = ParagraphStyle(
+        'StatusMild',
+        parent=styles['Heading2'],
+        fontSize=16,
+        spaceAfter=8,
+        textColor=colors.orange,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        borderWidth=1,
+        borderColor=colors.orange,
+        borderPadding=5,
+        borderRadius=5
+    )
+    
+    status_style_serious = ParagraphStyle(
+        'StatusSerious',
+        parent=styles['Heading2'],
+        fontSize=16,
+        spaceAfter=8,
+        textColor=colors.red,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        borderWidth=1,
+        borderColor=colors.red,
+        borderPadding=5,
+        borderRadius=5
     )
     
     table_header_style = ParagraphStyle(
@@ -99,6 +157,33 @@ def create_pdf_report(image_path, analysis_data, visualization_path=None):
     content.append(Paragraph(f"Image: {os.path.basename(image_path)}", normal_style))
     content.append(Spacer(1, 0.2*inch))
     
+    # Calculate the ratio of normal to total measurements
+    normal_count = 0
+    total_count = 0
+    for name, data in analysis_data["measurements"].items():
+        if 'status' in data and data['status'] != "Informational":
+            total_count += 1
+            if data['status'] == "Normal":
+                normal_count += 1
+    
+    # Create summary status statement
+    if total_count > 0:
+        normal_ratio = normal_count / total_count
+        
+        if normal_ratio >= 0.7:  # More than 70% normal
+            status_msg = "NO SERIOUS ISSUES DETECTED"
+            status_style = status_style_good
+        elif normal_ratio >= 0.5:  # 50-70% normal
+            status_msg = "MILD POSTURE CONCERNS"
+            status_style = status_style_mild
+        else:  # Less than 50% normal
+            status_msg = "POSTURE ISSUES REQUIRING ATTENTION"
+            status_style = status_style_serious
+            
+        # Add the status message
+        content.append(Paragraph(status_msg, status_style))
+        content.append(Spacer(1, 0.1*inch))
+    
     # Add original image to report
     if os.path.exists(image_path):
         img_width = 3.5*inch
@@ -113,10 +198,135 @@ def create_pdf_report(image_path, analysis_data, visualization_path=None):
         content.append(Image(visualization_path, width=img_width, height=img_width*0.75))
         content.append(Spacer(1, 0.2*inch))
     
-    # Summary section
+    # NEW SECTION: What This Means For You
+    content.append(Paragraph("What This Means For You", heading_style))
+    
+    # Check for issues in analysis data and provide simple explanations
+    has_issues = False
+    simple_explanations = []
+    
+    # Check knee alignment
+    left_knee_dev = None
+    right_knee_dev = None
+    for name, data in analysis_data["measurements"].items():
+        if name == "Left Knee Deviation":
+            left_knee_dev = data
+        elif name == "Right Knee Deviation":
+            right_knee_dev = data
+    
+    if left_knee_dev and right_knee_dev:
+        if left_knee_dev['status'] == "Abnormal" and right_knee_dev['status'] == "Abnormal":
+            if left_knee_dev['value'] > 0.1 and right_knee_dev['value'] < -0.1:
+                simple_explanations.append(Paragraph("<b>Knee Alignment:</b> Your knees appear to be angling inward (knock knees). This may affect your balance and could contribute to knee pain over time.", normal_style))
+                has_issues = True
+            elif left_knee_dev['value'] < -0.1 and right_knee_dev['value'] > 0.1:
+                simple_explanations.append(Paragraph("<b>Knee Alignment:</b> Your knees appear to be angling outward (bow legs). This can affect how weight is distributed across your joints.", normal_style))
+                has_issues = True
+    
+    # Check shoulder alignment
+    shoulder_diff = None
+    for name, data in analysis_data["measurements"].items():
+        if name == "Shoulder Height Difference":
+            shoulder_diff = data
+            break
+    
+    if shoulder_diff and shoulder_diff['status'] == "Abnormal":
+        simple_explanations.append(Paragraph("<b>Shoulder Alignment:</b> Your shoulders appear uneven. This could be due to posture habits, muscle imbalance, or how you were standing.", normal_style))
+        has_issues = True
+    
+    # Check hip alignment
+    hip_diff = None
+    for name, data in analysis_data["measurements"].items():
+        if name == "Hip Height Difference":
+            hip_diff = data
+            break
+    
+    if hip_diff and hip_diff['status'] == "Abnormal":
+        simple_explanations.append(Paragraph("<b>Hip Alignment:</b> Your hips appear uneven. This might affect your walking pattern and could potentially lead to back or knee issues if persistent.", normal_style))
+        has_issues = True
+    
+    # Check vertical alignment
+    vertical_align = None
+    for name, data in analysis_data["measurements"].items():
+        if name == "Vertical Alignment":
+            vertical_align = data
+            break
+    
+    if vertical_align and vertical_align['status'] == "Abnormal":
+        if vertical_align['value'] > 0.1:
+            simple_explanations.append(Paragraph("<b>Overall Posture:</b> You appear to be leaning forward. This can put extra stress on your back and neck.", normal_style))
+        else:
+            simple_explanations.append(Paragraph("<b>Overall Posture:</b> You appear to be leaning backward. This can put extra stress on your lower back.", normal_style))
+        has_issues = True
+    
+    # If no issues found
+    if not has_issues:
+        simple_explanations.append(Paragraph("<b>Good news!</b> We didn't detect any significant posture issues in this image. Your body alignment appears to be within normal ranges.", normal_style))
+    else:
+        # Add overall summary for issues
+        content.append(Paragraph("We've identified some potential posture patterns you might want to address. Remember that a single image analysis has limitations - consult with a healthcare professional for a complete assessment.", normal_style))
+    
+    # Add all explanations
+    for explanation in simple_explanations:
+        content.append(explanation)
+    
+    # Add next steps
+    content.append(Spacer(1, 0.1*inch))
+    content.append(Paragraph("<b>What to do next:</b>", normal_style))
+    
+    if has_issues and "recommendations" in analysis_data and analysis_data["recommendations"]:
+        content.append(Paragraph("Based on this analysis, consider:", normal_style))
+        for rec in analysis_data["recommendations"]:
+            content.append(Paragraph(f"• {rec}", normal_style))
+    else:
+        content.append(Paragraph("• Continue maintaining good posture habits", normal_style))
+        content.append(Paragraph("• Consider periodic posture checks, especially if you spend long hours sitting", normal_style))
+    
+    content.append(Spacer(1, 0.2*inch))
+    
+    # Summary section (original)
     content.append(Paragraph("Analysis Summary", heading_style))
+    
+    # Create a table for the summary instead of paragraphs
+    summary_data = [
+        [Paragraph("Finding", table_header_style), 
+         Paragraph("Details", table_header_style)]
+    ]
+    
+    # Row styles for the summary table
+    summary_row_styles = []
+    summary_row_styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey))
+    summary_row_styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.black))
+    summary_row_styles.append(('ALIGN', (0, 0), (0, -1), 'LEFT'))
+    summary_row_styles.append(('ALIGN', (1, 0), (1, -1), 'LEFT'))
+    summary_row_styles.append(('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'))
+    summary_row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 12))
+    summary_row_styles.append(('GRID', (0, 0), (-1, -1), 1, colors.black))
+    summary_row_styles.append(('VALIGN', (0, 0), (-1, -1), 'MIDDLE'))
+    
+    # Keep track of row index
+    row_idx = 1
+    
     for issue, details in analysis_data["summary"].items():
-        content.append(Paragraph(f"<b>{issue}:</b> {details}", normal_style))
+        # Color code the row based on content
+        if any(negative in details.lower() for negative in ["issue", "abnormal", "imbalance", "deviat", "concern", "error"]):
+            # Highlight entire row for abnormal
+            summary_row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightcoral))
+            summary_row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.white))
+        elif any(positive in details.lower() for positive in ["normal", "no significant", "good"]):
+            # Highlight entire row for normal
+            summary_row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightgreen))
+            summary_row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.darkgreen))
+            
+        summary_data.append([issue, details])
+        row_idx += 1
+    
+    # Create and style the table
+    summary_table = Table(summary_data, colWidths=[1.5*inch, 5*inch])
+    summary_table.setStyle(TableStyle(summary_row_styles))
+    
+    # Add the table to content
+    content.append(summary_table)
     content.append(Spacer(1, 0.2*inch))
     
     # Detailed measurements section
@@ -166,24 +376,44 @@ def create_pdf_report(image_path, analysis_data, visualization_path=None):
          Paragraph("Status", table_header_style)]
     ]
     
+    # Row styles for the measurements table
+    row_styles = []
+    row_styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey))
+    row_styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.black))
+    row_styles.append(('ALIGN', (0, 0), (-1, -1), 'CENTER'))
+    row_styles.append(('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'))
+    row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 12))
+    row_styles.append(('GRID', (0, 0), (-1, -1), 1, colors.black))
+    row_styles.append(('VALIGN', (0, 0), (-1, -1), 'MIDDLE'))
+    
+    # Keep track of row index as we add data
+    row_idx = 1
+    
     for name, data in analysis_data["measurements"].items():
+        # Add color coding for status
+        if data['status'] == "Abnormal":
+            status_cell = Paragraph(data['status'], ParagraphStyle('Abnormal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+            # Highlight entire row for abnormal
+            row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightcoral))
+            row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.white))
+        elif data['status'] == "Normal":
+            status_cell = Paragraph(data['status'], ParagraphStyle('Normal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+            # Highlight entire row for normal
+            row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightgreen))
+            row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.darkgreen))
+        else:
+            status_cell = data['status']
+            
         measurements_data.append([
             name,
             f"{data['value']:.4f}",
             f"{data['threshold']:.4f}" if 'threshold' in data else "N/A",
-            data['status']
+            status_cell
         ])
+        row_idx += 1
     
     measurements_table = Table(measurements_data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.2*inch])
-    measurements_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    measurements_table.setStyle(TableStyle(row_styles))
     
     content.append(measurements_table)
     content.append(Spacer(1, 0.2*inch))
@@ -616,6 +846,57 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
             spaceAfter=6
         )
         
+        important_style = ParagraphStyle(
+            'Important',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=6,
+            textColor=colors.red,
+            fontName='Helvetica-Bold'
+        )
+        
+        status_style_good = ParagraphStyle(
+            'StatusGood',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=8,
+            textColor=colors.green,
+            fontName='Helvetica-Bold',
+            alignment=TA_CENTER,
+            borderWidth=1,
+            borderColor=colors.green,
+            borderPadding=5,
+            borderRadius=5
+        )
+        
+        status_style_mild = ParagraphStyle(
+            'StatusMild',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=8,
+            textColor=colors.orange,
+            fontName='Helvetica-Bold',
+            alignment=TA_CENTER,
+            borderWidth=1,
+            borderColor=colors.orange,
+            borderPadding=5,
+            borderRadius=5
+        )
+        
+        status_style_serious = ParagraphStyle(
+            'StatusSerious',
+            parent=styles['Heading2'],
+            fontSize=16,
+            spaceAfter=8,
+            textColor=colors.red,
+            fontName='Helvetica-Bold',
+            alignment=TA_CENTER,
+            borderWidth=1,
+            borderColor=colors.red,
+            borderPadding=5,
+            borderRadius=5
+        )
+        
         table_header_style = ParagraphStyle(
             'TableHeader',
             parent=styles['Normal'],
@@ -672,14 +953,6 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
             except Exception as e:
                 logger.exception(f"Error creating visualization grid: {str(e)}")
                 # Continue with report generation even if visualization fails
-        
-        # Overview
-        content.append(Paragraph("Analysis Overview", heading_style))
-        content.append(Paragraph(
-            "This report contains aggregated analysis from multiple frames extracted from a video. "
-            "The results represent an average of measurements across these frames, providing a more "
-            "comprehensive assessment than a single image analysis.", normal_style))
-        content.append(Spacer(1, 0.2*inch))
         
         # Calculate aggregated measurements
         aggregated_measurements = {}
@@ -742,6 +1015,140 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
             if "recommendations" in frame_data:
                 all_recommendations.update(frame_data["recommendations"])
         
+        # Calculate overall status summary
+        normal_count = 0
+        total_count = 0
+        for name, data in aggregated_measurements.items():
+            if 'status' in data and data['status'] != "Informational":
+                total_count += 1
+                if data['status'] == "Normal":
+                    normal_count += 1
+        
+        # Create summary status statement
+        if total_count > 0:
+            normal_ratio = normal_count / total_count
+            
+            if normal_ratio >= 0.7:  # More than 70% normal
+                status_msg = "NO SERIOUS POSTURE ISSUES DETECTED"
+                status_style = status_style_good
+            elif normal_ratio >= 0.5:  # 50-70% normal
+                status_msg = "MILD POSTURE CONCERNS"
+                status_style = status_style_mild
+            else:  # Less than 50% normal
+                status_msg = "POSTURE ISSUES REQUIRING ATTENTION"
+                status_style = status_style_serious
+                
+            # Add the status message
+            content.append(Paragraph(status_msg, status_style))
+            content.append(Spacer(1, 0.1*inch))
+        
+        # Overview
+        content.append(Paragraph("Analysis Overview", heading_style))
+        content.append(Paragraph(
+            "This report contains analysis from multiple moments in your video. "
+            "Unlike a single photo, this gives us a more complete picture of your posture during movement. "
+            "The results show averages across these moments, which can reveal patterns that might not be visible in just one frame.",
+            normal_style))
+        content.append(Spacer(1, 0.2*inch))
+        
+        # NEW SECTION: What This Means For You
+        content.append(Paragraph("What This Means For You", heading_style))
+        
+        # Analyze aggregated measurements to provide simple explanations
+        has_issues = False
+        simple_explanations = []
+        
+        # Check knee alignment
+        left_knee_avg = aggregated_measurements.get("Left Knee Deviation", {}).get("avg_value", 0)
+        right_knee_avg = aggregated_measurements.get("Right Knee Deviation", {}).get("avg_value", 0)
+        knee_threshold = 0.1
+        
+        if left_knee_avg > knee_threshold and right_knee_avg < -knee_threshold:
+            simple_explanations.append(Paragraph("<b>Knee Alignment:</b> Your knees appear to be consistently angling inward (knock knees). This pattern may affect your balance and could contribute to knee pain over time.", normal_style))
+            has_issues = True
+        elif left_knee_avg < -knee_threshold and right_knee_avg > knee_threshold:
+            simple_explanations.append(Paragraph("<b>Knee Alignment:</b> Your knees appear to be consistently angling outward (bow legs). This pattern can affect how weight is distributed across your joints.", normal_style))
+            has_issues = True
+        
+        # Shoulder alignment
+        shoulder_diff_avg = aggregated_measurements.get("Shoulder Height Difference", {}).get("avg_value", 0)
+        shoulder_threshold = 0.05
+        
+        if abs(shoulder_diff_avg) > shoulder_threshold:
+            shoulder_diff_max = aggregated_measurements.get("Shoulder Height Difference", {}).get("max_value", 0)
+            shoulder_diff_min = aggregated_measurements.get("Shoulder Height Difference", {}).get("min_value", 0)
+            
+            # Check if the shoulders are consistently uneven or variable
+            if abs(shoulder_diff_min) > shoulder_threshold and abs(shoulder_diff_max) > shoulder_threshold and ((shoulder_diff_min > 0) == (shoulder_diff_max > 0)):
+                simple_explanations.append(Paragraph(f"<b>Shoulder Alignment:</b> Your shoulders appear consistently uneven throughout the video. This could indicate a muscle imbalance or postural habit.", normal_style))
+            else:
+                simple_explanations.append(Paragraph(f"<b>Shoulder Alignment:</b> Your shoulder alignment varies during movement, but tends to be uneven. This might be related to how you distribute weight when moving.", normal_style))
+            has_issues = True
+        
+        # Hip alignment
+        hip_diff_avg = aggregated_measurements.get("Hip Height Difference", {}).get("avg_value", 0)
+        
+        if abs(hip_diff_avg) > shoulder_threshold:
+            simple_explanations.append(Paragraph(f"<b>Hip Alignment:</b> Your hips appear uneven during movement. This might affect your walking pattern and could potentially lead to lower back issues if persistent.", normal_style))
+            has_issues = True
+        
+        # Overall posture
+        vertical_avg = aggregated_measurements.get("Vertical Alignment", {}).get("avg_value", 0)
+        
+        if abs(vertical_avg) > 0.1:
+            if vertical_avg > 0.1:
+                simple_explanations.append(Paragraph(f"<b>Overall Posture:</b> You tend to lean forward during movement. This can put extra strain on your back and neck muscles.", normal_style))
+            else:
+                simple_explanations.append(Paragraph(f"<b>Overall Posture:</b> You tend to lean backward during movement. This can put extra stress on your lower back.", normal_style))
+            has_issues = True
+        
+        # If no issues found
+        if not has_issues:
+            content.append(Paragraph("<b>Good news!</b> We didn't detect any significant posture issues in your movement. Your body alignment appears to be within normal ranges.", normal_style))
+        else:
+            # Add overall summary for issues
+            content.append(Paragraph("We've identified some potential posture patterns during your movement. The advantage of video analysis is that we can see how your posture changes over time, giving a more complete picture than a single image.", normal_style))
+            content.append(Spacer(1, 0.1*inch))
+            
+            # Add all explanations
+            for explanation in simple_explanations:
+                content.append(explanation)
+        
+        # Add consistency information
+        content.append(Spacer(1, 0.1*inch))
+        content.append(Paragraph("<b>About Your Movement Consistency:</b>", normal_style))
+        
+        # Find the measurement with highest variation to comment on
+        highest_variation = 0
+        highest_var_name = None
+        
+        for name, data in aggregated_measurements.items():
+            if "std_dev" in data and "avg_value" in data and data["avg_value"] != 0:
+                variation = abs(data["std_dev"] / data["avg_value"]) if data["avg_value"] != 0 else 0
+                if variation > highest_variation:
+                    highest_variation = variation
+                    highest_var_name = name
+        
+        if highest_var_name and highest_variation > 0.2:
+            content.append(Paragraph(f"Your {highest_var_name.lower()} shows the most variation during movement. This suggests you might benefit from focusing on consistency in this area.", normal_style))
+        else:
+            content.append(Paragraph("Your posture appears relatively consistent throughout the video, which is a positive sign of stability.", normal_style))
+        
+        # Add next steps
+        content.append(Spacer(1, 0.1*inch))
+        content.append(Paragraph("<b>What to do next:</b>", normal_style))
+        
+        if all_recommendations:
+            content.append(Paragraph("Based on this analysis, consider:", normal_style))
+            # Use set to avoid duplicate recommendations
+            for recommendation in all_recommendations:
+                content.append(Paragraph(f"• {recommendation}", normal_style))
+        else:
+            content.append(Paragraph("• Continue maintaining good posture habits", normal_style))
+            content.append(Paragraph("• Consider periodic posture checks, especially during activities you do regularly", normal_style))
+        
+        content.append(Spacer(1, 0.2*inch))
+        
         # Summary section
         content.append(Paragraph("Summary of Findings", heading_style))
         
@@ -754,84 +1161,124 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
              Paragraph("Status", table_header_style)]
         ]
         
+        # Row styles for the measurements table
+        row_styles = []
+        row_styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey))
+        row_styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.black))
+        row_styles.append(('ALIGN', (0, 0), (-1, -1), 'CENTER'))
+        row_styles.append(('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'))
+        row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 12))
+        row_styles.append(('GRID', (0, 0), (-1, -1), 1, colors.black))
+        row_styles.append(('VALIGN', (0, 0), (-1, -1), 'MIDDLE'))
+        
+        # Keep track of row index as we add data
+        row_idx = 1
+        
         for name, data in aggregated_measurements.items():
+            # Add color coding for status
+            if data['status'] == "Abnormal":
+                status_cell = Paragraph(data['status'], ParagraphStyle('Abnormal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+                # Highlight entire row for abnormal
+                row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightcoral))
+                row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.white))
+            elif data['status'] == "Normal":
+                status_cell = Paragraph(data['status'], ParagraphStyle('Normal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+                # Highlight entire row for normal
+                row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightgreen))
+                row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.darkgreen))
+            else:
+                status_cell = data['status']
+                
             row = [
                 name,
                 f"{data['avg_value']:.4f}",
                 f"{data['min_value']:.4f}",
                 f"{data['max_value']:.4f}",
-                data['status']
+                status_cell
             ]
             summary_data.append(row)
+            row_idx += 1
         
         summary_table = Table(summary_data, colWidths=[2*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1*inch])
-        summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
+        summary_table.setStyle(TableStyle(row_styles))
         
         content.append(summary_table)
         content.append(Spacer(1, 0.2*inch))
         
         # Key findings section
-        content.append(Paragraph("Key Findings", heading_style))
+        content.append(Paragraph("Technical Analysis Details", heading_style))
+        
+        # Create a table for the technical findings
+        findings_data = [
+            [Paragraph("Finding", table_header_style), 
+             Paragraph("Details", table_header_style)]
+        ]
+        
+        # Row styles for the findings table
+        findings_row_styles = []
+        findings_row_styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey))
+        findings_row_styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.black))
+        findings_row_styles.append(('ALIGN', (0, 0), (0, -1), 'LEFT'))
+        findings_row_styles.append(('ALIGN', (1, 0), (1, -1), 'LEFT'))
+        findings_row_styles.append(('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'))
+        findings_row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 12))
+        findings_row_styles.append(('GRID', (0, 0), (-1, -1), 1, colors.black))
+        findings_row_styles.append(('VALIGN', (0, 0), (-1, -1), 'MIDDLE'))
+        
+        # Keep track of row index
+        row_idx = 1
         
         findings = []
         
         # Knee alignment
-        left_knee_avg = aggregated_measurements.get("Left Knee Deviation", {}).get("avg_value", 0)
-        right_knee_avg = aggregated_measurements.get("Right Knee Deviation", {}).get("avg_value", 0)
-        knee_threshold = 0.1
-        
         if left_knee_avg > knee_threshold and right_knee_avg < -knee_threshold:
-            findings.append("Possible knocked knees detected based on average measurements.")
+            findings.append(("Knee Alignment", "Possible knocked knees detected based on average measurements."))
         elif left_knee_avg < -knee_threshold and right_knee_avg > knee_threshold:
-            findings.append("Possible bow legs detected based on average measurements.")
+            findings.append(("Knee Alignment", "Possible bow legs detected based on average measurements."))
         else:
-            findings.append("No significant leg alignment issues detected based on average measurements.")
+            findings.append(("Knee Alignment", "No significant leg alignment issues detected based on average measurements."))
         
         # Shoulder alignment
-        shoulder_diff_avg = aggregated_measurements.get("Shoulder Height Difference", {}).get("avg_value", 0)
-        shoulder_threshold = 0.05
-        
         if abs(shoulder_diff_avg) > shoulder_threshold:
-            findings.append(f"Possible shoulder imbalance detected (Average difference: {shoulder_diff_avg:.2f}).")
+            findings.append(("Shoulder Alignment", f"Possible shoulder imbalance detected (Average difference: {shoulder_diff_avg:.2f})."))
         else:
-            findings.append(f"No significant shoulder imbalance detected (Average difference: {shoulder_diff_avg:.2f}).")
+            findings.append(("Shoulder Alignment", f"No significant shoulder imbalance detected (Average difference: {shoulder_diff_avg:.2f})."))
         
         # Hip alignment
-        hip_diff_avg = aggregated_measurements.get("Hip Height Difference", {}).get("avg_value", 0)
-        
         if abs(hip_diff_avg) > shoulder_threshold:
-            findings.append(f"Possible hip height imbalance detected (Average difference: {hip_diff_avg:.2f}).")
+            findings.append(("Hip Alignment", f"Possible hip height imbalance detected (Average difference: {hip_diff_avg:.2f})."))
         else:
-            findings.append(f"No significant hip height imbalance detected (Average difference: {hip_diff_avg:.2f}).")
+            findings.append(("Hip Alignment", f"No significant hip height imbalance detected (Average difference: {hip_diff_avg:.2f})."))
         
         # Overall posture
-        vertical_avg = aggregated_measurements.get("Vertical Alignment", {}).get("avg_value", 0)
-        
         if abs(vertical_avg) > 0.1:
-            findings.append(f"Possible forward/backward lean detected (Average deviation: {vertical_avg:.2f}).")
+            findings.append(("Vertical Alignment", f"Possible forward/backward lean detected (Average deviation: {vertical_avg:.2f})."))
         else:
-            findings.append(f"Good average vertical alignment (Average deviation: {vertical_avg:.2f}).")
+            findings.append(("Vertical Alignment", f"Good average vertical alignment (Average deviation: {vertical_avg:.2f})."))
         
-        # Add findings to content
-        for finding in findings:
-            content.append(Paragraph(f"• {finding}", normal_style))
+        # Add findings to table
+        for category, detail in findings:
+            # Color code the row based on content
+            if any(negative in detail.lower() for negative in ["issue", "abnormal", "imbalance", "deviat", "concern", "possible", "detected"]):
+                if not any(positive in detail.lower() for positive in ["no significant", "good"]):
+                    # Highlight entire row for abnormal
+                    findings_row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightcoral))
+                    findings_row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.white))
+            elif any(positive in detail.lower() for positive in ["normal", "no significant", "good"]):
+                # Highlight entire row for normal
+                findings_row_styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightgreen))
+                findings_row_styles.append(('TEXTCOLOR', (0, row_idx), (-1, row_idx), colors.darkgreen))
+            
+            findings_data.append([category, detail])
+            row_idx += 1
         
+        # Create and style the table
+        findings_table = Table(findings_data, colWidths=[1.5*inch, 5*inch])
+        findings_table.setStyle(TableStyle(findings_row_styles))
+        
+        # Add the table to content
+        content.append(findings_table)
         content.append(Spacer(1, 0.2*inch))
-        
-        # Recommendations section
-        if all_recommendations:
-            content.append(Paragraph("Recommendations", heading_style))
-            for recommendation in all_recommendations:
-                content.append(Paragraph(f"• {recommendation}", normal_style))
-            content.append(Spacer(1, 0.2*inch))
         
         # Frame-by-frame analysis
         content.append(Paragraph("Frame-by-Frame Analysis", heading_style))
@@ -858,23 +1305,43 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
                      Paragraph("Status", table_header_style)]
                 ]
                 
+                # Row styles for each frame measurement table
+                frame_row_styles = []
+                frame_row_styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey))
+                frame_row_styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.black))
+                frame_row_styles.append(('ALIGN', (0, 0), (-1, -1), 'CENTER'))
+                frame_row_styles.append(('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'))
+                frame_row_styles.append(('BOTTOMPADDING', (0, 0), (-1, 0), 12))
+                frame_row_styles.append(('GRID', (0, 0), (-1, -1), 1, colors.black))
+                frame_row_styles.append(('VALIGN', (0, 0), (-1, -1), 'MIDDLE'))
+                
+                # Keep track of row index
+                frame_row_idx = 1
+                
                 for name, data in frame_data["measurements"].items():
+                    # Add color coding for status
+                    if data['status'] == "Abnormal":
+                        status_cell = Paragraph(data['status'], ParagraphStyle('Abnormal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+                        # Highlight entire row for abnormal
+                        frame_row_styles.append(('BACKGROUND', (0, frame_row_idx), (-1, frame_row_idx), colors.lightcoral))
+                        frame_row_styles.append(('TEXTCOLOR', (0, frame_row_idx), (-1, frame_row_idx), colors.white))
+                    elif data['status'] == "Normal":
+                        status_cell = Paragraph(data['status'], ParagraphStyle('Normal', parent=normal_style, textColor=colors.white, fontName='Helvetica-Bold'))
+                        # Highlight entire row for normal
+                        frame_row_styles.append(('BACKGROUND', (0, frame_row_idx), (-1, frame_row_idx), colors.lightgreen))
+                        frame_row_styles.append(('TEXTCOLOR', (0, frame_row_idx), (-1, frame_row_idx), colors.darkgreen))
+                    else:
+                        status_cell = data['status']
+                    
                     frame_measures.append([
                         name,
                         f"{data['value']:.4f}",
-                        data['status']
+                        status_cell
                     ])
+                    frame_row_idx += 1
                 
                 frame_table = Table(frame_measures, colWidths=[2.5*inch, 1.5*inch, 1.5*inch])
-                frame_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ]))
+                frame_table.setStyle(TableStyle(frame_row_styles))
                 
                 content.append(frame_table)
             
@@ -883,11 +1350,10 @@ def create_aggregated_report(analysis_results, report_path, visualization_path=N
         # Disclaimer
         content.append(Paragraph("Disclaimer", heading_style))
         content.append(Paragraph(
-            "This analysis is preliminary and based on 2D image data extracted from a video. For an accurate diagnosis, "
-            "please consult a medical professional. The measurements and assessments are intended "
-            "for informational purposes only and should not be used as the sole basis for medical decisions. "
-            "The aggregated results may provide a more comprehensive assessment than a single image, but still have "
-            "inherent limitations compared to in-person clinical evaluation.",
+            "This analysis is based on 2D video frames and has limitations. For a comprehensive assessment, "
+            "please consult a healthcare professional. The measurements are for informational purposes only "
+            "and should not replace professional medical advice. A video analysis provides more data points "
+            "than a single image, but still has inherent limitations compared to in-person evaluation.",
             normal_style
         ))
         

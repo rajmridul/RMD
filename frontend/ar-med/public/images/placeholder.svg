@@ -1,0 +1,8 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#3b82f6" opacity="0.1"/>
+  <rect x="50" y="50" width="700" height="500" rx="15" fill="#3b82f6" opacity="0.2"/>
+  <circle cx="400" cy="250" r="120" fill="#3b82f6" opacity="0.3"/>
+  <rect x="280" y="380" width="240" height="80" rx="10" fill="#3b82f6" opacity="0.5"/>
+  <text x="400" y="300" font-family="Arial" font-size="24" text-anchor="middle" fill="#0f172a">AR-MED</text>
+  <text x="400" y="430" font-family="Arial" font-size="18" text-anchor="middle" fill="#0f172a">Posture Analysis</text>
+</svg> 

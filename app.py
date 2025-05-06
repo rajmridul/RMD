@@ -321,6 +321,41 @@ def get_visualization(filename):
         logger.exception(f"Error serving visualization {filename}: {str(e)}")
         return jsonify({'error': f'Error serving visualization: {str(e)}'}), 500
 
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_api():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+        
+    file = request.files['file']
+    
+    # Save the uploaded file
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
+    
+    # Determine if it's a video or image
+    is_video = filename.lower().endswith(('.mp4', '.mov', '.avi'))
+    
+    if is_video:
+        # Process video
+        result = process_video(file_path)
+    else:
+        # Process image
+        result = analyze_posture(file_path, visualization=True, generate_pdf=True, return_data=True)
+    
+    # Add URLs to the results
+    if 'pdf_path' in result:
+        pdf_filename = os.path.basename(result['pdf_path'])
+        result['report_url'] = url_for('get_report', filename=pdf_filename, _external=True)
+        
+    if 'visualization_path' in result:
+        vis_filename = os.path.basename(result['visualization_path'])
+        result['visualization_url'] = url_for('get_visualization', filename=vis_filename, _external=True)
+    
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     logger.info("Starting AR-MED server...")
     app.run(debug=True, host='0.0.0.0', port=5000) 
